@@ -1,0 +1,15 @@
+{
+  "intervalSeconds": 60,
+  "branch": "main",
+  "remote": "origin",
+  "targets": [
+    {
+      "url": "http://localhost/_APGAT/api/8XJP1HSOH91M59F3BNEBHFQP7XQ7B3UU",
+      "file": "vecuma-grupas.html"
+    },
+    {
+      "url": "http://localhost/_APGAT/api/NGPOSCSJUFCMD34AW203Q890A3JB2XR5",
+      "file": "kopvertejums.html"
+    }
+  ]
+}
