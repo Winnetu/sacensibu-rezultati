@@ -113,11 +113,23 @@ async function createPublishWorktree() {
     } else {
       await runGit(["worktree", "add", "--detach", worktree]);
       await runGit(["switch", "--orphan", publishBranch], worktree);
-      await runGit(["rm", "-rf", "."], worktree);
+      await runGit(["clean", "-fdx"], worktree);
     }
     return { worktree, temporaryBranch: !exists };
   } catch (error) {
+    try {
+      await runGit(["worktree", "remove", "--force", worktree]);
+    } catch {
+      // The worktree may not have been registered yet.
+    }
     await rm(worktree, { recursive: true, force: true });
+    if (!exists) {
+      try {
+        await runGit(["branch", "-D", publishBranch]);
+      } catch {
+        // The temporary branch may not have been created yet.
+      }
+    }
     throw error;
   }
 }
