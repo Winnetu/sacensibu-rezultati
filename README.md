@@ -23,6 +23,8 @@ From this directory:
 npm start
 ```
 
+On Windows, you can double-click `start-results.bat` instead. It starts the same long-running publisher from the repository directory.
+
 The first cycle runs immediately. The next cycle starts 60 seconds after the previous cycle finishes. Press `Ctrl+C` to stop it.
 
 Edit `config.json` to change the polling interval, API URLs, output filenames, remote, or publishing branch.
@@ -45,6 +47,12 @@ https://winnetu.github.io/sacensibu-rezultati/kopvertejums.html
 ```
 
 The Node.js process must remain running on the computer where the local results server is available. GitHub Pages only serves files that have already been pushed to `live`; it cannot access `localhost` directly.
+
+## Repository privacy
+
+You can make the GitHub repository private if your GitHub plan allows Pages for private repositories. However, the Pages website is **public on the internet by default**, even when the repository is private. Making the repository private does not make the published result pages private.
+
+Private GitHub Pages sites require GitHub Enterprise Cloud organization access control. For a public results website, a private repository with a public Pages site is suitable; do not publish sensitive information in the generated HTML.
 
 ## Safety behavior
 
