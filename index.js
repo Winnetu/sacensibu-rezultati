@@ -11,7 +11,7 @@ const config = JSON.parse(await readFile(configPath, "utf8"));
 const intervalMs = Number(config.intervalSeconds) * 1000;
 const remote = config.remote || "origin";
 const branch = config.branch || "main";
-const projectFiles = ["index.js", "config.json", "package.json", ".gitignore", "README.md"];
+const projectFiles = ["index.js", "config.json", "package.json", "package-lock.json", ".gitignore", "README.md"];
 let timer;
 let stopping = false;
 
