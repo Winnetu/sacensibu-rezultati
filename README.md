@@ -1,11 +1,12 @@
 # Sacensibu rezultati
 
-This project polls two local RACE RESULT pages every minute and publishes the raw HTML results to GitHub:
+This project polls two local RACE RESULT pages every minute and publishes a static website to the `live` branch on GitHub:
 
 - `vecuma-grupas.html` — age-group results
 - `kopvertejums.html` — overall results
+- `index.html` — homepage linking to both result pages
 
-The script commits and pushes only when a result page changes. It keeps the original HTML unchanged so the saved files can be opened directly or served with GitHub Pages.
+The two result pages are stored exactly as returned by the local server. A new commit is pushed to `live` only when result data changes. The source code and configuration stay on `main`.
 
 ## Requirements
 
@@ -24,12 +25,27 @@ npm start
 
 The first cycle runs immediately. The next cycle starts 60 seconds after the previous cycle finishes. Press `Ctrl+C` to stop it.
 
-Edit `config.json` to change the polling interval, API URLs, output filenames, remote, or branch.
+Edit `config.json` to change the polling interval, API URLs, output filenames, remote, or publishing branch.
 
-## GitHub
+## Enable GitHub Pages
 
-The script uses the existing `origin` remote and pushes to `main`. Because the repository starts empty, the first successful cycle creates the initial commit and pushes it. If the remote branch has been created independently, synchronize it manually before running the script.
+In the GitHub repository:
 
-If GitHub Pages is enabled for this repository, configure it to publish from the branch and folder containing these files. The result pages may generate a commit approximately once per minute while participants' results are changing.
+1. Open **Settings → Pages**.
+2. Under **Build and deployment**, choose **Deploy from a branch**.
+3. Select branch **`live`** and folder **`/ (root)`**.
+4. Click **Save**.
 
-If a fetch fails, returns a non-OK response, or does not look like a result-list page, that cycle is skipped and the last good files are preserved. If a push fails, the commit remains local and the next changed cycle can retry after the Git issue is fixed.
+GitHub will show the published site URL in the Pages settings. The pages will be available at:
+
+```text
+https://winnetu.github.io/sacensibu-rezultati/
+https://winnetu.github.io/sacensibu-rezultati/vecuma-grupas.html
+https://winnetu.github.io/sacensibu-rezultati/kopvertejums.html
+```
+
+The Node.js process must remain running on the computer where the local results server is available. GitHub Pages only serves files that have already been pushed to `live`; it cannot access `localhost` directly.
+
+## Safety behavior
+
+If a fetch fails, returns a non-OK response, or does not look like a result-list page, that cycle is skipped and the last good published files are preserved. If a push fails, the error is logged and the existing published files remain unchanged on GitHub; fix the Git issue before the next update.

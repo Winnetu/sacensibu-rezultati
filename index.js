@@ -1,5 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve, relative } from "node:path";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -10,7 +11,7 @@ const configPath = resolve(root, "config.json");
 const config = JSON.parse(await readFile(configPath, "utf8"));
 const intervalMs = Number(config.intervalSeconds) * 1000;
 const remote = config.remote || "origin";
-const branch = config.branch || "main";
+const publishBranch = config.publishBranch || "live";
 const projectFiles = ["index.js", "config.json", "package.json", "package-lock.json", ".gitignore", "README.md"];
 let timer;
 let stopping = false;
@@ -18,8 +19,8 @@ let stopping = false;
 if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
   throw new Error("config.intervalSeconds must be a positive number");
 }
-if (!Array.isArray(config.targets) || config.targets.length === 0) {
-  throw new Error("config.targets must contain at least one target");
+if (!Array.isArray(config.targets) || config.targets.length !== 2) {
+  throw new Error("config.targets must contain exactly two targets");
 }
 
 function timestamp() {
@@ -30,9 +31,9 @@ function log(message) {
   console.log(`[${timestamp()}] ${message}`);
 }
 
-async function runGit(args) {
+async function runGit(args, cwd = root) {
   const { stdout, stderr } = await execFileAsync("git", args, {
-    cwd: root,
+    cwd,
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
     maxBuffer: 1024 * 1024,
   });
@@ -57,6 +58,141 @@ async function fetchTarget(target) {
   return content;
 }
 
+function escapeHtml(value) {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  })[character]);
+}
+
+function makeIndexHtml(updatedAt) {
+  const links = config.targets.map((target) => `        <li><a href="${escapeHtml(target.file)}">${escapeHtml(target.label || target.file)}</a></li>`).join("\n");
+  return `<!doctype html>
+<html lang="lv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ilūkstes velomaratons 2026 — rezultāti</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.5; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; color: #222; }
+    a { color: #0645ad; }
+  </style>
+</head>
+<body>
+  <h1>Ilūkstes velomaratons 2026</h1>
+  <h2>Rezultāti</h2>
+  <ul>
+${links}
+  </ul>
+  <p>Atjaunots: <time datetime="${escapeHtml(updatedAt)}">${escapeHtml(updatedAt)}</time></p>
+</body>
+</html>
+`;
+}
+
+async function branchExists() {
+  try {
+    await runGit(["ls-remote", "--exit-code", "--heads", remote, publishBranch]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function createPublishWorktree() {
+  const worktree = await mkdtemp(resolve(tmpdir(), "sacensibu-live-"));
+  const exists = await branchExists();
+
+  try {
+    if (exists) {
+      await runGit(["fetch", remote, `${publishBranch}:${publishBranch}`]);
+      await runGit(["worktree", "add", "--detach", worktree, publishBranch]);
+    } else {
+      await runGit(["worktree", "add", "--detach", worktree]);
+      await runGit(["switch", "--orphan", publishBranch], worktree);
+      await runGit(["rm", "-rf", "."], worktree);
+    }
+    return { worktree, temporaryBranch: !exists };
+  } catch (error) {
+    await rm(worktree, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function removePublishWorktree(worktree, temporaryBranch) {
+  try {
+    await runGit(["worktree", "remove", "--force", worktree]);
+  } finally {
+    await rm(worktree, { recursive: true, force: true });
+    if (temporaryBranch) {
+      try {
+        await runGit(["branch", "-D", publishBranch]);
+      } catch {
+        // The branch may already be removed if worktree setup failed.
+      }
+    }
+  }
+}
+
+async function publishResults(results) {
+  const { worktree, temporaryBranch } = await createPublishWorktree();
+  const updatedAt = timestamp();
+
+  try {
+    const changedFiles = [];
+    for (const { target, content } of results) {
+      const outputPath = resolve(worktree, target.file);
+      const outputRelativePath = relative(worktree, outputPath);
+      if (outputRelativePath.startsWith("..") || outputRelativePath.includes("..\\")) {
+        throw new Error(`target file must be inside the published site: ${target.file}`);
+      }
+
+      let previous = null;
+      try {
+        previous = await readFile(outputPath, "utf8");
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+
+      if (previous === content) continue;
+      await writeFile(outputPath, content, "utf8");
+      changedFiles.push(target.file);
+    }
+
+    if (changedFiles.length === 0) {
+      log(`live/${publishBranch}: unchanged; nothing to commit`);
+      return;
+    }
+
+    const indexPath = resolve(worktree, "index.html");
+    await writeFile(indexPath, makeIndexHtml(updatedAt), "utf8");
+    changedFiles.push("index.html");
+
+    await runGit(["add", "--", ...changedFiles], worktree);
+    const { stdout: status } = await runGit(["status", "--porcelain", "--", ...changedFiles], worktree);
+    if (!status) {
+      log(`live/${publishBranch}: git reports no changes`);
+      return;
+    }
+
+    const commitMessage = `Publish results ${updatedAt}`;
+    await runGit(["commit", "-m", commitMessage], worktree);
+    log(`live/${publishBranch}: committed ${changedFiles.join(", ")}`);
+
+    try {
+      await runGit(["push", remote, `HEAD:${publishBranch}`], worktree);
+      log(`live/${publishBranch}: pushed`);
+    } catch (error) {
+      log(`live/${publishBranch}: push failed: ${error.message}`);
+    }
+  } finally {
+    await removePublishWorktree(worktree, temporaryBranch);
+  }
+}
+
 async function updateResults() {
   log("fetching results");
 
@@ -67,63 +203,11 @@ async function updateResults() {
       content: await fetchTarget(target),
     })));
   } catch (error) {
-    log(`cycle skipped: ${error.message}`);
+    log(`cycle skipped; published files preserved: ${error.message}`);
     return;
   }
 
-  const changedFiles = [];
-  for (const { target, content } of fetched) {
-    const outputPath = resolve(root, target.file);
-    const outputRelativePath = relative(root, outputPath);
-    if (outputRelativePath.startsWith("..") || outputRelativePath.includes("..\\")) {
-      throw new Error(`target file must be inside the repository: ${target.file}`);
-    }
-
-    let previous = null;
-    try {
-      previous = await readFile(outputPath, "utf8");
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-
-    if (previous === content) {
-      log(`${target.file}: unchanged`);
-      continue;
-    }
-
-    await writeFile(outputPath, content, "utf8");
-    changedFiles.push(target.file);
-    log(`${target.file}: updated (${Buffer.byteLength(content, "utf8")} bytes)`);
-  }
-
-  if (changedFiles.length === 0) {
-    log("no change; nothing to commit");
-    return;
-  }
-
-  const filesToStage = [...new Set([...projectFiles, ...changedFiles])];
-  await runGit(["add", "--", ...filesToStage]);
-  const { stdout: status } = await runGit(["status", "--porcelain", "--", ...filesToStage]);
-  if (!status) {
-    log("git reports no staged changes; nothing to commit");
-    return;
-  }
-
-  const commitMessage = `Results update ${timestamp()}`;
-  try {
-    await runGit(["commit", "-m", commitMessage]);
-    log(`committed: ${commitMessage}`);
-  } catch (error) {
-    log(`commit failed: ${error.message}`);
-    return;
-  }
-
-  try {
-    await runGit(["push", remote, `HEAD:${branch}`]);
-    log(`pushed to ${remote}/${branch}`);
-  } catch (error) {
-    log(`push failed; local commit retained: ${error.message}`);
-  }
+  await publishResults(fetched);
 }
 
 async function cycle() {
@@ -145,5 +229,5 @@ function stop(signal) {
 process.once("SIGINT", () => stop("SIGINT"));
 process.once("SIGTERM", () => stop("SIGTERM"));
 
-log(`starting; polling every ${config.intervalSeconds} seconds`);
+log(`starting; publishing to ${publishBranch}; polling every ${config.intervalSeconds} seconds`);
 await cycle();

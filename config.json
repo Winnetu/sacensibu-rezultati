@@ -1,6 +1,7 @@
 {
   "intervalSeconds": 60,
   "branch": "main",
+  "publishBranch": "live",
   "remote": "origin",
   "targets": [
     {
