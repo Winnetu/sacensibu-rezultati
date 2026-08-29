@@ -1,10 +1,11 @@
 # Sacensibu rezultati
 
-This project polls two local RACE RESULT pages every minute and publishes a static website to the `live` branch on GitHub:
+This project polls three local RACE RESULT pages every minute and publishes a static website to the `live` branch on GitHub:
 
-- `vecuma-grupas.html` — age-group results
-- `kopvertejums.html` — overall results
-- `index.html` — homepage linking to both result pages
+- `starta-saraksts.html` — Starta saraksts
+- `vecuma-grupas.html` — Rezultāti vecuma grupās
+- `kopvertejums.html` — Rezultāti
+- `index.html` — homepage linking to all three result pages
 
 The two result pages are stored exactly as returned by the local server. A new commit is pushed to `live` only when result data changes. The source code and configuration stay on `main`.
 
@@ -42,6 +43,7 @@ GitHub will show the published site URL in the Pages settings. The pages will be
 
 ```text
 https://winnetu.github.io/sacensibu-rezultati/
+https://winnetu.github.io/sacensibu-rezultati/starta-saraksts.html
 https://winnetu.github.io/sacensibu-rezultati/vecuma-grupas.html
 https://winnetu.github.io/sacensibu-rezultati/kopvertejums.html
 ```

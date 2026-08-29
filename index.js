@@ -19,8 +19,8 @@ let stopping = false;
 if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
   throw new Error("config.intervalSeconds must be a positive number");
 }
-if (!Array.isArray(config.targets) || config.targets.length !== 2) {
-  throw new Error("config.targets must contain exactly two targets");
+if (!Array.isArray(config.targets) || config.targets.length === 0) {
+  throw new Error("config.targets must contain at least one target");
 }
 
 function timestamp() {

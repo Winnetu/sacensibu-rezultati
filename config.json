@@ -5,12 +5,19 @@
   "remote": "origin",
   "targets": [
     {
+      "url": "http://localhost/_APGAT/api/W212EMYY49ZUHO0NPUN3WHC7R347A373",
+      "file": "starta-saraksts.html",
+      "label": "Starta saraksts"
+    },
+    {
       "url": "http://localhost/_APGAT/api/8XJP1HSOH91M59F3BNEBHFQP7XQ7B3UU",
-      "file": "vecuma-grupas.html"
+      "file": "vecuma-grupas.html",
+      "label": "Rezultāti vecuma grupās"
     },
     {
       "url": "http://localhost/_APGAT/api/NGPOSCSJUFCMD34AW203Q890A3JB2XR5",
-      "file": "kopvertejums.html"
+      "file": "kopvertejums.html",
+      "label": "Rezultāti"
     }
   ]
 }
