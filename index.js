@@ -68,6 +68,61 @@ function escapeHtml(value) {
   })[character]);
 }
 
+const pageStyles = `:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #293b3a;
+  background: #f4f7f3;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+  background: #f4f7f3;
+  color: #293b3a;
+}
+
+a { color: #2d6a62; font-weight: 600; }
+a:hover { color: #b05b45; }
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background: #fffdf9;
+  border: 1px solid #dce7df;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(44, 75, 68, 0.08);
+}
+
+td, th { padding: 0.65rem 0.75rem; border-bottom: 1px solid #e8eee9; }
+tr:last-child td { border-bottom: 0; }
+.columnhead, tr:first-child.columnhead { background: #dfeee7; color: #244b45; }
+.columnhead td { font-weight: 700; }
+.record:nth-child(even) { background: #f8fbf8; }
+.record:hover { background: #fff2e8; }
+.group2, .group5 { color: #b05b45; }
+.headline1, .headline2 { color: #244b45; }
+.listHeaderFooter { color: #687a75; }
+
+@media (max-width: 700px) {
+  body { padding: 1rem 0.5rem 2rem; overflow-x: auto; }
+  table { min-width: 680px; font-size: 0.9rem; }
+}
+`;
+
+function addStylesheet(content) {
+  const stylesheet = '  <link rel="stylesheet" href="styles.css">\n';
+  if (!/<\/head>/i.test(content)) {
+    throw new Error("result page does not contain a closing head tag");
+  }
+  return content.replace(/<\/head>/i, `${stylesheet}</head>`);
+}
+
 function makeIndexHtml(updatedAt) {
   const links = config.targets.map((target) => `        <li><a href="${escapeHtml(target.file)}">${escapeHtml(target.label || target.file)}</a></li>`).join("\n");
   return `<!doctype html>
@@ -76,10 +131,7 @@ function makeIndexHtml(updatedAt) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ilūkstes velomaratons 2026 — rezultāti</title>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.5; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; color: #222; }
-    a { color: #0645ad; }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <h1>Ilūkstes velomaratons 2026</h1>
@@ -169,9 +221,22 @@ async function publishResults(results) {
         if (error.code !== "ENOENT") throw error;
       }
 
-      if (previous === content) continue;
-      await writeFile(outputPath, content, "utf8");
+      const styledContent = addStylesheet(content);
+      if (previous === styledContent) continue;
+      await writeFile(outputPath, styledContent, "utf8");
       changedFiles.push(target.file);
+    }
+
+    const stylesPath = resolve(worktree, "styles.css");
+    let previousStyles = null;
+    try {
+      previousStyles = await readFile(stylesPath, "utf8");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    if (previousStyles !== pageStyles) {
+      await writeFile(stylesPath, pageStyles, "utf8");
+      changedFiles.push("styles.css");
     }
 
     if (changedFiles.length === 0) {
@@ -179,9 +244,11 @@ async function publishResults(results) {
       return;
     }
 
-    const indexPath = resolve(worktree, "index.html");
-    await writeFile(indexPath, makeIndexHtml(updatedAt), "utf8");
-    changedFiles.push("index.html");
+    if (changedFiles.some((file) => file !== "styles.css")) {
+      const indexPath = resolve(worktree, "index.html");
+      await writeFile(indexPath, makeIndexHtml(updatedAt), "utf8");
+      changedFiles.push("index.html");
+    }
 
     await runGit(["add", "--", ...changedFiles], worktree);
     const { stdout: status } = await runGit(["status", "--porcelain", "--", ...changedFiles], worktree);

@@ -7,7 +7,7 @@ This project polls three local RACE RESULT pages every minute and publishes a st
 - `kopvertejums.html` — Rezultāti
 - `index.html` — homepage linking to all three result pages
 
-The two result pages are stored exactly as returned by the local server. A new commit is pushed to `live` only when result data changes. The source code and configuration stay on `main`.
+The result tables and data are preserved from the local server; the publisher adds only a link to the shared `styles.css` file for presentation. A new commit is pushed to `live` only when result data or styling changes. The source code and configuration stay on `main`.
 
 ## Requirements
 
